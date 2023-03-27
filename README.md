@@ -1,7 +1,6 @@
 # PriceWatchService
 
 [![GitHub license](https://img.shields.io/github/license/Tanzgarnele/PriceWatchService.svg?style=flat-square)](https://github.com/Tanzgarnele/PriceWatchService/blob/master/LICENSE)
-[![GitHub release](https://img.shields.io/github/release/Tanzgarnele/PriceWatchService.svg?style=flat-square)](https://github.com/Tanzgarnele/PriceWatchService/releases)
 [![GitHub issues](https://img.shields.io/github/issues/Tanzgarnele/PriceWatchService.svg?style=flat-square)](https://github.com/Tanzgarnele/PriceWatchService/issues)
 
 **Note: This project is still a work in progress.**
