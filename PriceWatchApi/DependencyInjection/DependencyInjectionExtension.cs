@@ -1,4 +1,8 @@
-﻿using PriceWatchApi.Settings;
+﻿using DataAccessLayer.Interfaces;
+using DataAccessLayer.Repositories;
+using PriceWatchApi.Settings;
+using System.Data;
+using System.Data.SqlClient;
 
 namespace PriceWatchApi.DependencyInjection
 {
@@ -13,6 +17,15 @@ namespace PriceWatchApi.DependencyInjection
 
             services.AddOptions<ApplicationSettings>()
                     .Bind(configuration.GetSection("ApplicationSettings"));
+
+            services.AddTransient<IDbConnection>(provider =>
+            {
+                String? connectionString = configuration.GetConnectionString("MSSQL");
+
+                return new SqlConnection(connectionString);
+            });
+
+            services.AddScoped<IAlarmRepository, AlarmRepository>();
 
             return services;
         }
