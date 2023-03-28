@@ -25,7 +25,11 @@ namespace PriceWatchApi.DependencyInjection
                 return new SqlConnection(connectionString);
             });
 
-            services.AddScoped<IAlarmRepository, AlarmRepository>();
+            services.AddScoped<IProductRepository, ProductRepository>();
+            services.AddScoped<IProductPriceRepository, ProductPriceRepository>();
+            services.AddScoped<IProductWebsiteRepository, ProductWebsiteRepository>();
+            services.AddScoped<IUserRepository, UserRepository>();
+            services.AddScoped<IWebsiteRepository, WebsiteRepository>();
 
             return services;
         }
