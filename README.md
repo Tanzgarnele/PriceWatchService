@@ -22,6 +22,10 @@ You will need to create an appsettings.json file with the following structure:
   "ConnectionStrings": {
     "MSSQL": "your_connection_string"
   },
+  "AllowedUrls": {
+    "example1": "https://www.example1.org",
+    "example2": "https://www.example2.org",
+  },
   "AllowedHosts": "*"
 }
 ```
