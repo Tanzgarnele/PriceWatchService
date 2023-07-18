@@ -1,11 +1,9 @@
 ﻿using Dapper;
 using DataAccessLayer.Interfaces;
 using DataAccessLayer.Models;
-using Microsoft.Extensions.Configuration;
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Linq;
 using System.Threading.Tasks;
 
 namespace DataAccessLayer.Repositories
@@ -13,72 +11,104 @@ namespace DataAccessLayer.Repositories
     public class ProductRepository : IProductRepository
     {
         private readonly IDbConnection dbConnection;
-        private readonly IConfiguration configuration;
-        private readonly List<String> allowedUrls;
 
-        public ProductRepository(IDbConnection dbConnection, IConfiguration configuration)
+        public ProductRepository(IDbConnection dbConnection)
         {
             this.dbConnection = dbConnection ?? throw new ArgumentNullException(nameof(dbConnection));
-            this.configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
-
-            this.allowedUrls = new List<String>();
-
-            IConfigurationSection allowedUrlsSection = this.configuration.GetSection("AllowedUrls");
-            allowedUrls.AddRange(allowedUrlsSection.GetChildren().Select(child => child.Value));
         }
 
-        public async Task<Product> GetByIdAsync(Int32 id)
+        public async Task<Dictionary<String, Object>> GetByIdAsync(Int32 id)
         {
             if (id <= 0)
             {
-                throw new ArgumentOutOfRangeException(nameof(id), "Invalid Id.");
+                throw new ArgumentException("Invalid id.");
             }
 
-            String sql = "SELECT * FROM products WHERE Id = @Id";
+            String sql = "SELECT Id, Name, Url, ThumbnailUrl, Website, DateAdded FROM Products WHERE Id = @Id";
 
-            return await this.dbConnection.QuerySingleOrDefaultAsync<Product>(sql, new { Id = id });
-        }
+            dynamic result = await this.dbConnection.QueryFirstOrDefaultAsync<dynamic>(sql, new { Id = id });
 
-        public async Task<Product> AddAsync(Product product)
-        {
-            if (String.IsNullOrWhiteSpace(product.Name) || String.IsNullOrWhiteSpace(product.Url))
+            if (result == null)
             {
-                throw new ArgumentException("Name and Url are required fields.");
+                return null; // No product found with the given id
             }
 
-            if (!this.IsValidUrl(product.Url))
+            Dictionary<String, Object> product = new Dictionary<String, Object>
             {
-                throw new ArgumentException("Invalid URL.");
-            }
-
-            String sql = "INSERT INTO products (Name, Url, ThumbnailUrl) VALUES (@Name, @Url, @ThumbnailUrl); SELECT CAST(SCOPE_IDENTITY() as int)";
-
-            Int32 id = await this.dbConnection.QuerySingleAsync<Int32>(sql, product);
-            product.Id = id;
+                { "Id", result.Id },
+                { "Name", result.Name },
+                { "Url", result.Url },
+                { "ThumbnailUrl", result.ThumbnailUrl },
+                { "Website", result.Website },
+                { "DateAdded", result.DateAdded }
+            };
 
             return product;
         }
 
-        public async Task<Product> UpdateAsync(Product product)
+        public async Task<IEnumerable<Dictionary<String, Object>>> GetAllAsync()
         {
-            if (product.Id <= 0)
+            String sql = "SELECT * FROM Products";
+
+            IEnumerable<dynamic> results = await this.dbConnection.QueryAsync<dynamic>(sql);
+
+            List<Dictionary<String, Object>> products = new List<Dictionary<String, Object>>();
+
+            foreach (dynamic result in results)
             {
-                throw new ArgumentOutOfRangeException(nameof(product.Id), "Invalid Id.");
+                Dictionary<String, Object> product = new Dictionary<String, Object>
+                {
+                    { "Id", result.Id },
+                    { "Name", result.Name },
+                    { "Url", result.Url },
+                    { "ThumbnailUrl", result.ThumbnailUrl },
+                    { "Website", result.Website },
+                    { "DateAdded", result.DateAdded }
+                };
+
+                products.Add(product);
             }
 
-            if (String.IsNullOrWhiteSpace(product.Name) || String.IsNullOrWhiteSpace(product.Url))
+            return products;
+        }
+
+        public async Task<Int32> AddAsync(Product product)
+        {
+            String sql = @"INSERT INTO Products (Name, Url, ThumbnailUrl, Website, DateAdded)
+				   VALUES (@Name, @Url, @ThumbnailUrl, @Website, @DateAdded);
+				   SELECT SCOPE_IDENTITY();";
+
+            Dictionary<String, Object> parameters = new Dictionary<String, Object>
             {
-                throw new ArgumentException("Name and Url are required fields.");
+                { "@Name", product.Name },
+                { "@Url", product.Url },
+                { "@ThumbnailUrl", product.ThumbnailUrl },
+                { "@Website", product.Website },
+                { "@DateAdded", DateTime.Now }
+            };
+
+            return await this.dbConnection.QueryFirstOrDefaultAsync<Int32>(sql, parameters);
+        }
+
+        public async Task<Product> UpdateAsync(Int32 id, Product product)
+        {
+            if (id <= 0)
+            {
+                throw new ArgumentException("Invalid id.");
             }
 
-            if (!this.IsValidUrl(product.Url))
+            String sql = "UPDATE Products SET Name = @Name, Url = @Url, ThumbnailUrl = @ThumbnailUrl, Website = @Website WHERE Id = @Id";
+
+            Dictionary<String, Object> parameters = new Dictionary<String, Object>
             {
-                throw new ArgumentException("Invalid URL.");
-            }
+                { "@Name", product.Name },
+                { "@Url", product.Url },
+                { "@ThumbnailUrl", product.ThumbnailUrl },
+                { "@Website", product.Website },
+                { "@Id", id }
+            };
 
-            String sql = "UPDATE products SET Name = @Name, Url = @Url, ThumbnailUrl = @ThumbnailUrl WHERE Id = @Id";
-
-            await this.dbConnection.ExecuteAsync(sql, product);
+            await this.dbConnection.ExecuteAsync(sql, parameters);
 
             return product;
         }
@@ -87,26 +117,12 @@ namespace DataAccessLayer.Repositories
         {
             if (id <= 0)
             {
-                throw new ArgumentOutOfRangeException(nameof(id), "Invalid Id.");
+                throw new ArgumentException("Invalid id.");
             }
 
-            String sql = "DELETE FROM products WHERE Id = @Id";
+            String sql = "DELETE FROM Products WHERE Id = @Id";
 
             return await this.dbConnection.ExecuteAsync(sql, new { Id = id });
-        }
-
-        private Boolean IsValidUrl(String url)
-        {
-            Boolean isValidUri = Uri.TryCreate(url, UriKind.Absolute, out Uri uriResult) && uriResult.Scheme == Uri.UriSchemeHttps;
-
-            if (isValidUri)
-            {
-                String host = uriResult.Host.ToLower();
-
-                return allowedUrls.Any(u => host.Contains(new Uri(u).Host.ToLower()));
-            }
-
-            return false;
         }
     }
 }

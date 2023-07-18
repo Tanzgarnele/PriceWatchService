@@ -7,13 +7,11 @@ namespace DataAccessLayer.Interfaces
 {
     public interface IUserRepository
     {
-        Task<IEnumerable<User>> GetAllAsync();
+        Task<IEnumerable<Dictionary<String, Object>>> GetAllAsync();
 
-        Task<User> GetByIdAsync(Int32 id);
+        Task<Dictionary<String, Object>> GetByIdAsync(Int32 id);
 
-        Task<User> AddAsync(User user);
-
-        Task<User> UpdateAsync(User user);
+        Task<Int32> AddAsync(User user);
 
         Task<Int32> DeleteAsync(Int32 id);
 

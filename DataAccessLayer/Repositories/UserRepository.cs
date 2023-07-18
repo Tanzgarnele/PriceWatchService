@@ -18,26 +18,63 @@ namespace DataAccessLayer.Repositories
             this.dbConnection = dbConnection ?? throw new ArgumentNullException(nameof(dbConnection));
         }
 
-        public async Task<IEnumerable<User>> GetAllAsync()
+        public async Task<IEnumerable<Dictionary<String, Object>>> GetAllAsync()
         {
-            String sql = "SELECT Id, Name, Email, Role, CreatedAt FROM users";
+            String sql = "SELECT Id, Name, Email, Role, CreationDate FROM Users";
 
-            return await this.dbConnection.QueryAsync<User>(sql);
+
+            IEnumerable<dynamic> results = await this.dbConnection.QueryAsync<dynamic>(sql);
+
+            List<Dictionary<String, Object>> products = new List<Dictionary<String, Object>>();
+
+            foreach (dynamic result in results)
+            {
+                Dictionary<String, Object> product = new Dictionary<String, Object>
+                {
+                    { "Id", result.Id },
+                    { "Name", result.Name },
+                    { "Email", result.Email },
+                    { "Role", result.Role },
+                    { "CreationDate", DateTime.Now }
+                };
+
+                products.Add(product);
+            }
+
+            return products;
         }
 
-        public async Task<User> GetByIdAsync(Int32 id)
+        public async Task<Dictionary<String, Object>> GetByIdAsync(Int32 id)
         {
             if (id <= 0)
             {
-                throw new ArgumentException("Invalid Id");
+                throw new ArgumentException("Invalid id.");
             }
 
-            String sql = "SELECT Id, Name, Email, Role, CreatedAt FROM users WHERE Id = @Id";
+            String sql = "SELECT Id, Name, Email, Password, PasswordSalt, Role, CreationDate FROM Users WHERE Id = @Id";
 
-            return await this.dbConnection.QuerySingleOrDefaultAsync<User>(sql, new { Id = id });
+            dynamic result = await this.dbConnection.QueryFirstOrDefaultAsync<dynamic>(sql, new { Id = id });
+
+            if (result == null)
+            {
+                return null;
+            }
+
+            Dictionary<String, Object> product = new Dictionary<String, Object>
+            {
+                { "Id", result.Id },
+                { "Name", result.Name },
+                { "Email", result.Email },
+                { "Password", result.Password },
+                { "PasswordSalt", result.PasswordSalt },
+                { "Role", result.Role },
+                { "CreationDate", DateTime.Now }
+            };
+
+            return product;
         }
 
-        public async Task<User> AddAsync(User user)
+        public async Task<Int32> AddAsync(User user)
         {
             if (String.IsNullOrWhiteSpace(user.Name) || String.IsNullOrWhiteSpace(user.Password))
             {
@@ -52,58 +89,45 @@ namespace DataAccessLayer.Repositories
             String salt = BCryptNet.GenerateSalt();
             String hashedPassword = BCryptNet.HashPassword(user.Password, salt);
 
-            user.PasswordHash = hashedPassword;
-            user.PasswordSalt = salt;
-
-            String sql = "INSERT INTO users (Name, Email, PasswordHash, PasswordSalt, Role, CreatedAt) VALUES (@Name, @Email, @PasswordHash, @PasswordSalt, @Role, @CreatedAt); SELECT CAST(SCOPE_IDENTITY() as int)";
-            Int32 id = await this.dbConnection.QuerySingleAsync<Int32>(sql, user);
-            user.Id = id;
-
-            return user;
-        }
-
-        public async Task<User> UpdateAsync(User user)
-        {
-            if (user.Id <= 0)
+            Dictionary<String, Object> parameters = new Dictionary<String, Object>
             {
-                throw new ArgumentException("Invalid Id.");
-            }
+                { "Name", user.Name },
+                { "Email", user.Email },
+                { "Password", hashedPassword },
+                { "PasswordSalt", salt },
+                { "Role", user.Role },
+                { "CreationDate", DateTime.Now }
+            };
 
-            if (String.IsNullOrWhiteSpace(user.Name))
-            {
-                throw new ArgumentException("Name is a required field.");
-            }
+            String sql = "INSERT INTO Users (Name, Email, Password, PasswordSalt , Role, CreationDate) " +
+                         "VALUES (@Name, @Email, @Password, @PasswordSalt , @Role, @CreationDate); SELECT CAST(SCOPE_IDENTITY() as int)";
 
-            if (!String.IsNullOrEmpty(user.Password) && user.Password.Length < 8)
-            {
-                throw new ArgumentException("Password must be at least 8 characters long.");
-            }
-
-            if (!String.IsNullOrEmpty(user.Password))
-            {
-                String newSalt = BCryptNet.GenerateSalt();
-                String newHashedPassword = BCryptNet.HashPassword(user.Password, newSalt);
-
-                user.Password = newHashedPassword;
-                user.PasswordSalt = newSalt;
-            }
-
-            String sql = "UPDATE users SET Name = @Name, Email = @Email, Password = @Password, PasswordSalt = @PasswordSalt, Role = @Role, CreatedAt = @CreatedAt WHERE Id = @Id";
-            await this.dbConnection.ExecuteAsync(sql, user);
-
-            return user;
+            return await this.dbConnection.QuerySingleAsync<Int32>(sql, parameters);
         }
 
         public async Task<Int32> DeleteAsync(Int32 id)
         {
             if (id <= 0)
             {
-                throw new ArgumentException("Invalid Id.");
+                throw new ArgumentException("Invalid id.");
             }
 
-            String sql = "DELETE FROM users WHERE Id = @Id";
+            String sql = "DELETE FROM Users WHERE Id = @Id";
 
             return await this.dbConnection.ExecuteAsync(sql, new { Id = id });
+        }
+
+        public async Task<User> GetByEmailAsync(String email)
+        {
+            if (String.IsNullOrWhiteSpace(email))
+            {
+                throw new ArgumentException("Email is required.");
+            }
+
+            String sql = "SELECT Id, Name, Email, Password, PasswordSalt, Role, CreationDate " +
+                         "FROM Users WHERE Email = @Email";
+
+            return await this.dbConnection.QuerySingleOrDefaultAsync<User>(sql, new { Email = email });
         }
 
         public async Task<Boolean> ChangePasswordAsync(Int32 userId, String oldPassword, String newPassword)
@@ -118,14 +142,14 @@ namespace DataAccessLayer.Repositories
                 throw new ArgumentException("Old password and new password are required fields.");
             }
 
-            User user = await this.GetByIdAsync(userId);
+            Dictionary<String, Object> user = await this.GetByIdAsync(userId);
 
             if (user == null)
             {
                 throw new ArgumentException($"Invalid UserId.");
             }
 
-            if (!this.VerifyPasswordHash(oldPassword, user.PasswordHash, user.PasswordSalt))
+            if (!this.VerifyPasswordHash(oldPassword, user["Password"].ToString(), user["PasswordSalt"].ToString()))
             {
                 throw new ArgumentException("Old password is incorrect.");
             }
@@ -133,9 +157,16 @@ namespace DataAccessLayer.Repositories
             String newSalt = BCryptNet.GenerateSalt();
             String newHashedPassword = BCryptNet.HashPassword(newPassword, newSalt);
 
-            user.PasswordHash = newHashedPassword;
-            user.PasswordSalt = newSalt;
-            await this.UpdateAsync(user);
+            String sql = "UPDATE Users SET Password = @Password, PasswordSalt = @PasswordSalt WHERE Id = @Id";
+
+            Dictionary<String, Object> parameters = new Dictionary<String, Object>
+            {
+                { "Password", newHashedPassword },
+                { "PasswordSalt", newSalt },
+                { "Id", userId }
+            };
+
+            await this.dbConnection.ExecuteAsync(sql, parameters);
 
             return true;
         }
@@ -151,6 +182,5 @@ namespace DataAccessLayer.Repositories
 
             return hashedPassword == storedPasswordHash;
         }
-
     }
 }

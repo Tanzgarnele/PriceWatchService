@@ -26,10 +26,7 @@ namespace PriceWatchApi.DependencyInjection
             });
 
             services.AddScoped<IProductRepository, ProductRepository>();
-            services.AddScoped<IProductPriceRepository, ProductPriceRepository>();
-            services.AddScoped<IProductWebsiteRepository, ProductWebsiteRepository>();
             services.AddScoped<IUserRepository, UserRepository>();
-            services.AddScoped<IWebsiteRepository, WebsiteRepository>();
 
             return services;
         }
